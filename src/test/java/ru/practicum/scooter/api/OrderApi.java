@@ -1,5 +1,6 @@
 package ru.practicum.scooter.api;
 
+import io.qameta.allure.Step;
 import io.restassured.response.Response;
 import io.restassured.response.ValidatableResponse;
 import io.restassured.specification.RequestSpecification;
@@ -18,8 +19,7 @@ public class OrderApi {
         this.requestSpec = requestSpec;
     }
 
-    // ========== CREATE ORDER ==========
-    
+    @Step ("Создать заказ")
     public ValidatableResponse createOrder(OrderData order) {
         return given()
                 .spec(requestSpec)
@@ -28,6 +28,7 @@ public class OrderApi {
                 .then();
     }
 
+    @Step ("Создать заказ и получить Track")
     public int createOrderAndGetTrack(OrderData order) {
         Response response = given()
                 .spec(requestSpec)
@@ -42,14 +43,14 @@ public class OrderApi {
         return response.jsonPath().getInt("track");
     }
 
+    @Step("Проверить, что заказ успешно создан")
     public void assertOrderCreatedSuccessfully(OrderData order) {
         createOrder(order)
                 .statusCode(ApiConstants.STATUS_CREATED)
                 .body("track", greaterThan(0));
     }
 
-    // ========== LIST ORDERS ==========
-    
+    @Step("Получить список заказов")
     public ValidatableResponse getOrdersList() {
         return given()
                 .spec(requestSpec)
@@ -57,6 +58,7 @@ public class OrderApi {
                 .then();
     }
 
+    @Step("Проверить, что список заказов не пустой")
     public void assertOrdersListNotEmpty() {
         getOrdersList()
                 .statusCode(ApiConstants.STATUS_SUCCESS)
@@ -64,6 +66,7 @@ public class OrderApi {
                 .body("orders", hasSize(greaterThan(0)));
     }
 
+    @Step ("Проверить, что список заказов cуществует")
     public void assertOrdersListExists() {
         getOrdersList()
                 .statusCode(ApiConstants.STATUS_SUCCESS)

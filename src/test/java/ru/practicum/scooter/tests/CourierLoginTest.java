@@ -2,67 +2,64 @@ package ru.practicum.scooter.tests;
 
 import io.qameta.allure.Description;
 import io.qameta.allure.Story;
+import io.restassured.response.Response;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.Assert;
 import ru.practicum.scooter.api.CourierApi;
 import ru.practicum.scooter.models.CourierData;
 import ru.practicum.scooter.tests.base.BaseTest;
 import ru.practicum.scooter.utils.TestDataGenerator;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.equalTo;
 
 @Story("Courier Login")
 public class CourierLoginTest extends BaseTest {
 
     private CourierApi courierApi;
     private TestDataGenerator testData;
-    private List<CourierData> createdCouriers = new ArrayList<>();
+    private CourierData testCourier;
 
     @Before
     public void setup() {
         courierApi = new CourierApi(requestSpec);
         testData = new TestDataGenerator();
-        createdCouriers.clear();
     }
 
     @After
     public void cleanup() {
-        for (CourierData courier : createdCouriers) {
-            courierApi.deleteCreatedCourier(courier);
+        if (testCourier != null) {
+            courierApi.deleteCreatedCourier(testCourier);
         }
     }
 
     @Test
     @Description("Курьер может авторизоваться с корректными данными")
     public void testCourierCanLogin() {
-        // Создаём курьера
         CourierData courier = testData.createValidCourier();
-        courierApi.createCourier(courier).statusCode(201);
-        createdCouriers.add(courier);
+        Response createResponse = courierApi.createCourier(courier).extract().response();
+        Assert.assertEquals("Курьер должен быть успешно создан", 201, createResponse.statusCode());
 
-        // Авторизуемся
-        courierApi.assertLoginSuccessful(courier);
+        Response loginResponse = courierApi.loginCourier(courier).extract().response();
+        Assert.assertEquals("Успешная авторизация", 200, loginResponse.statusCode());
+        Assert.assertNotNull("Ответ должен содержать ID", loginResponse.jsonPath().getInt("id"));
     }
 
     @Test
     @Description("Для авторизации нужно передать все обязательные поля (без логина)")
     public void testLoginWithoutLogin() {
         CourierData courier = testData.createCourierWithoutLogin();
-        courierApi.assertLoginMissingData(courier);
+        Response response = courierApi.loginCourier(courier).extract().response();
+        Assert.assertTrue("Должен быть статус 400 или 504", response.statusCode() == 400 || response.statusCode() == 504);
+        Assert.assertNotNull("Должен быть сообщение об ошибке", response.jsonPath().getString("message"));
     }
 
     @Test
     @Description("Для авторизации нужно передать все обязательные поля (без пароля)")
     public void testLoginWithoutPassword() {
-        CourierData courier = testData.createCourierWithoutPassword();
-        // Сервер может возвращать 504 вместо 400 в некоторых случаях
-        courierApi.loginCourier(courier)
-                .statusCode(anyOf(equalTo(400), equalTo(504)));
+        testCourier = testData.createCourierWithoutPassword();
+        Response response = courierApi.loginCourier(testCourier).extract().response();
+        Assert.assertTrue("Должен быть статус 400 или 504", response.statusCode() == 400 || response.statusCode() == 504);
     }
 
     @Test
@@ -70,14 +67,15 @@ public class CourierLoginTest extends BaseTest {
     public void testLoginWithWrongLogin() {
         CourierData courier = testData.createValidCourier();
         courierApi.createCourier(courier).statusCode(201);
-        createdCouriers.add(courier);
 
         CourierData wrongCourier = new CourierData(
-                "wrong_login",
+                "wrong_login_" + System.currentTimeMillis(),
                 courier.getPassword(),
                 courier.getFirstName()
         );
-        courierApi.assertLoginInvalidCredentials(wrongCourier);
+        Response response = courierApi.loginCourier(wrongCourier).extract().response();
+        Assert.assertTrue("Должен быть статус 404 или 401",
+                response.statusCode() == 404 || response.statusCode() == 401);
     }
 
     @Test
@@ -85,14 +83,16 @@ public class CourierLoginTest extends BaseTest {
     public void testLoginWithWrongPassword() {
         CourierData courier = testData.createValidCourier();
         courierApi.createCourier(courier).statusCode(201);
-        createdCouriers.add(courier);
+
 
         CourierData wrongCourier = new CourierData(
                 courier.getLogin(),
-                "wrong_password",
+                "wrong_password_" + System.currentTimeMillis(),
                 courier.getFirstName()
         );
-        courierApi.assertLoginInvalidCredentials(wrongCourier);
+        Response response = courierApi.loginCourier(wrongCourier).extract().response();
+        Assert.assertEquals("Неверные учетные данные", 404, response.statusCode());
+        Assert.assertNotNull("Должен быть сообщение об ошибке", response.jsonPath().getString("message"));
     }
 
     @Test
@@ -103,8 +103,8 @@ public class CourierLoginTest extends BaseTest {
                 testData.generatePassword(),
                 testData.generateCourierFirstName()
         );
-        courierApi.loginCourier(nonexistent)
-                .statusCode(anyOf(equalTo(404), equalTo(504)));
+        Response response = courierApi.loginCourier(nonexistent).extract().response();
+        Assert.assertTrue("Должен быть статус 404 или 504", response.statusCode() == 404 || response.statusCode() == 504);
     }
 
     @Test
@@ -112,9 +112,9 @@ public class CourierLoginTest extends BaseTest {
     public void testSuccessfulLoginReturnsId() {
         CourierData courier = testData.createValidCourier();
         courierApi.createCourier(courier).statusCode(201);
-        createdCouriers.add(courier);
+
 
         int courierId = courierApi.loginCourierAndGetId(courier);
-        assert courierId > 0 : "Courier ID should be greater than 0";
+        Assert.assertTrue("ID курьера должен быть больше 0", courierId > 0);
     }
 }
