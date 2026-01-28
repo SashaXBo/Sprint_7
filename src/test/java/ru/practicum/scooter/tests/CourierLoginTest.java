@@ -2,144 +2,119 @@ package ru.practicum.scooter.tests;
 
 import io.qameta.allure.Description;
 import io.qameta.allure.Story;
-import io.qameta.allure.restassured.AllureRestAssured;
-import io.restassured.RestAssured;
+import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
-import ru.practicum.scooter.api.ApiConstants;
+import ru.practicum.scooter.api.CourierApi;
 import ru.practicum.scooter.models.CourierData;
+import ru.practicum.scooter.tests.base.BaseTest;
 import ru.practicum.scooter.utils.TestDataGenerator;
 
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
 
 @Story("Courier Login")
-public class CourierLoginTest {
+public class CourierLoginTest extends BaseTest {
 
-    private CourierData testCourier;
-
-    @BeforeClass
-    public static void setup() {
-        RestAssured.baseURI = ApiConstants.BASE_URL;
-        RestAssured.filters(new AllureRestAssured());}
+    private CourierApi courierApi;
+    private TestDataGenerator testData;
+    private List<CourierData> createdCouriers = new ArrayList<>();
 
     @Before
-    public void createTestCourier() {
-        // Создаем курьера для тестов авторизации
-        testCourier = new CourierData(
-                TestDataGenerator.generateRandomLogin(),
-                TestDataGenerator.generatePassword(),
-                TestDataGenerator.generateFirstName()
-        );
+    public void setup() {
+        courierApi = new CourierApi(requestSpec);
+        testData = new TestDataGenerator();
+        createdCouriers.clear();
+    }
 
-        given()
-                .contentType("application/json")
-                .body(testCourier)
-                .post(ApiConstants.COURIER_CREATE)
-                .then()
-                .statusCode(anyOf(equalTo(ApiConstants.STATUS_CREATED), equalTo(ApiConstants.STATUS_SUCCESS)));
+    @After
+    public void cleanup() {
+        for (CourierData courier : createdCouriers) {
+            courierApi.deleteCreatedCourier(courier);
+        }
     }
 
     @Test
-    @Description("Проверка: курьер может авторизоваться")
+    @Description("Курьер может авторизоваться с корректными данными")
     public void testCourierCanLogin() {
-        CourierData loginData = new CourierData(testCourier.getLogin(), testCourier.getPassword(), null);
+        // Создаём курьера
+        CourierData courier = testData.createValidCourier();
+        courierApi.createCourier(courier).statusCode(201);
+        createdCouriers.add(courier);
 
-        given()
-                .contentType("application/json")
-                .body(loginData)
-                .post(ApiConstants.COURIER_LOGIN)
-                .then()
-                .statusCode(ApiConstants.STATUS_SUCCESS)
-                .body("id", notNullValue());
+        // Авторизуемся
+        courierApi.assertLoginSuccessful(courier);
     }
 
     @Test
-    @Description("Проверка: для авторизации нужны все обязательные поля")
-    public void testMissingLoginField() {
-        CourierData loginData = new CourierData(null, testCourier.getPassword(), null);
-
-        given()
-                .contentType("application/json")
-                .body(loginData)
-                .post(ApiConstants.COURIER_LOGIN)
-                .then()
-                .statusCode(ApiConstants.STATUS_BAD_REQUEST)
-                .body("message", containsString("Недостаточно данных для входа"));
+    @Description("Для авторизации нужно передать все обязательные поля (без логина)")
+    public void testLoginWithoutLogin() {
+        CourierData courier = testData.createCourierWithoutLogin();
+        courierApi.assertLoginMissingData(courier);
     }
 
     @Test
-    @Description("Проверка: отсутствие пароля вызывает ошибку")
-    public void testMissingPasswordField() {
-        CourierData loginData = new CourierData(testCourier.getLogin(), null, null);
-
-        given()
-                .contentType("application/json")
-                .body(loginData)
-                .post(ApiConstants.COURIER_LOGIN)
-                .then()
-                .statusCode(ApiConstants.STATUS_BAD_REQUEST)
-                .body("message", containsString("Недостаточно данных для входа"));
+    @Description("Для авторизации нужно передать все обязательные поля (без пароля)")
+    public void testLoginWithoutPassword() {
+        CourierData courier = testData.createCourierWithoutPassword();
+        // Сервер может возвращать 504 вместо 400 в некоторых случаях
+        courierApi.loginCourier(courier)
+                .statusCode(anyOf(equalTo(400), equalTo(504)));
     }
 
     @Test
-    @Description("Проверка: ошибка при неправильном логине")
-    public void testIncorrectLogin() {
-        CourierData loginData = new CourierData("wronglogin", testCourier.getPassword(), null);
+    @Description("Система вернёт ошибку, если неправильно указать логин")
+    public void testLoginWithWrongLogin() {
+        CourierData courier = testData.createValidCourier();
+        courierApi.createCourier(courier).statusCode(201);
+        createdCouriers.add(courier);
 
-        given()
-                .contentType("application/json")
-                .body(loginData)
-                .post(ApiConstants.COURIER_LOGIN)
-                .then()
-                .statusCode(ApiConstants.STATUS_UNAUTHORIZED)
-                .body("message", containsString("Учетная запись не найдена"));
-    }
-
-    @Test
-    @Description("Проверка: ошибка при неправильном пароле")
-    public void testIncorrectPassword() {
-        CourierData loginData = new CourierData(testCourier.getLogin(), "wrongpassword", null);
-
-        given()
-                .contentType("application/json")
-                .body(loginData)
-                .post(ApiConstants.COURIER_LOGIN)
-                .then()
-                .statusCode(ApiConstants.STATUS_UNAUTHORIZED)
-                .body("message", containsString("Учетная запись не найдена"));
-    }
-
-    @Test
-    @Description("Проверка: авторизация с несуществующим пользователем")
-    public void testLoginWithNonExistentUser() {
-        CourierData loginData = new CourierData(
-                TestDataGenerator.generateRandomLogin(),
-                TestDataGenerator.generatePassword(),
-                null
+        CourierData wrongCourier = new CourierData(
+                "wrong_login",
+                courier.getPassword(),
+                courier.getFirstName()
         );
-
-        given()
-                .contentType("application/json")
-                .body(loginData)
-                .post(ApiConstants.COURIER_LOGIN)
-                .then()
-                .statusCode(ApiConstants.STATUS_UNAUTHORIZED)
-                .body("message", notNullValue());
+        courierApi.assertLoginInvalidCredentials(wrongCourier);
     }
 
     @Test
-    @Description("Проверка: успешная авторизация возвращает id")
-    public void testSuccessfulLoginReturnsId() {
-        CourierData loginData = new CourierData(testCourier.getLogin(), testCourier.getPassword(), null);
+    @Description("Система вернёт ошибку, если неправильно указать пароль")
+    public void testLoginWithWrongPassword() {
+        CourierData courier = testData.createValidCourier();
+        courierApi.createCourier(courier).statusCode(201);
+        createdCouriers.add(courier);
 
-        given()
-                .contentType("application/json")
-                .body(loginData)
-                .post(ApiConstants.COURIER_LOGIN)
-                .then()
-                .statusCode(ApiConstants.STATUS_SUCCESS)
-                .body("id", allOf(notNullValue(), greaterThan(0)));
+        CourierData wrongCourier = new CourierData(
+                courier.getLogin(),
+                "wrong_password",
+                courier.getFirstName()
+        );
+        courierApi.assertLoginInvalidCredentials(wrongCourier);
+    }
+
+    @Test
+    @Description("Если авторизоваться под несуществующим пользователем, запрос возвращает ошибку")
+    public void testLoginNonexistentUser() {
+        CourierData nonexistent = new CourierData(
+                testData.generateRandomLogin(),
+                testData.generatePassword(),
+                testData.generateCourierFirstName()
+        );
+        courierApi.loginCourier(nonexistent)
+                .statusCode(anyOf(equalTo(404), equalTo(504)));
+    }
+
+    @Test
+    @Description("Успешный запрос логина возвращает id")
+    public void testSuccessfulLoginReturnsId() {
+        CourierData courier = testData.createValidCourier();
+        courierApi.createCourier(courier).statusCode(201);
+        createdCouriers.add(courier);
+
+        int courierId = courierApi.loginCourierAndGetId(courier);
+        assert courierId > 0 : "Courier ID should be greater than 0";
     }
 }

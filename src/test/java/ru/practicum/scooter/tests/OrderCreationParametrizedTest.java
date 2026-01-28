@@ -2,172 +2,115 @@ package ru.practicum.scooter.tests;
 
 import io.qameta.allure.Description;
 import io.qameta.allure.Story;
-import io.qameta.allure.restassured.AllureRestAssured;
-import io.restassured.RestAssured;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import ru.practicum.scooter.api.ApiConstants;
+import ru.practicum.scooter.api.OrderApi;
 import ru.practicum.scooter.models.OrderData;
+import ru.practicum.scooter.tests.base.BaseTest;
+import ru.practicum.scooter.utils.TestDataGenerator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
+@Story("Order Creation Parameterized")
+@RunWith(Parameterized.class)
+public class OrderCreationParametrizedTest extends BaseTest {
 
-@Story("Order Creation")
-public class OrderCreationParametrizedTest {
+    private OrderApi orderApi;
+    private TestDataGenerator testData;
+    private OrderData order;
+    private String testDescription;
 
-    @BeforeClass
-    public static void setup() {
-        RestAssured.baseURI = ApiConstants.BASE_URL;
-        RestAssured.filters(new AllureRestAssured());
+    public OrderCreationParametrizedTest(OrderData order, String testDescription) {
+        this.order = order;
+        this.testDescription = testDescription;
+    }
+
+    @Parameterized.Parameters(name = "{1}")
+    public static Collection<Object[]> data() {
+        TestDataGenerator testData = new TestDataGenerator();
+        return Arrays.asList(new Object[][] {
+                { createOrderWithBlackColor(testData), "Заказ с чёрным цветом" },
+                { createOrderWithGreyColor(testData), "Заказ с серым цветом" },
+                { createOrderWithBothColors(testData), "Заказ с обоими цветами" },
+                { createOrderWithoutColor(testData), "Заказ без цвета" }
+        });
+    }
+
+    private static OrderData createOrderWithBlackColor(TestDataGenerator testData) {
+        OrderData order = new OrderData();
+        order.setColor(Arrays.asList("black"));
+        order.setFirstName(testData.generateFirstName());
+        order.setLastName(testData.generateLastName());
+        order.setAddress(testData.generateAddress());
+        order.setMetroStation(testData.generateMetroStation());
+        order.setPhone(testData.generatePhone());
+        order.setRentTime(5);
+        order.setDeliveryDate(testData.generateDeliveryDate());
+        order.setComment("Test order with BLACK color");
+        return order;
+    }
+
+    private static OrderData createOrderWithGreyColor(TestDataGenerator testData) {
+        OrderData order = new OrderData();
+        order.setColor(Arrays.asList("grey"));
+        order.setFirstName(testData.generateFirstName());
+        order.setLastName(testData.generateLastName());
+        order.setAddress(testData.generateAddress());
+        order.setMetroStation(testData.generateMetroStation());
+        order.setPhone(testData.generatePhone());
+        order.setRentTime(5);
+        order.setDeliveryDate(testData.generateDeliveryDate());
+        order.setComment("Test order with GREY color");
+        return order;
+    }
+
+    private static OrderData createOrderWithBothColors(TestDataGenerator testData) {
+        OrderData order = new OrderData();
+        order.setColor(Arrays.asList("black", "grey"));
+        order.setFirstName(testData.generateFirstName());
+        order.setLastName(testData.generateLastName());
+        order.setAddress(testData.generateAddress());
+        order.setMetroStation(testData.generateMetroStation());
+        order.setPhone(testData.generatePhone());
+        order.setRentTime(5);
+        order.setDeliveryDate(testData.generateDeliveryDate());
+        order.setComment("Test order with BOTH colors");
+        return order;
+    }
+
+    private static OrderData createOrderWithoutColor(TestDataGenerator testData) {
+        OrderData order = new OrderData();
+        order.setColor(new ArrayList<>()); // Empty color list
+        order.setFirstName(testData.generateFirstName());
+        order.setLastName(testData.generateLastName());
+        order.setAddress(testData.generateAddress());
+        order.setMetroStation(testData.generateMetroStation());
+        order.setPhone(testData.generatePhone());
+        order.setRentTime(5);
+        order.setDeliveryDate(testData.generateDeliveryDate());
+        order.setComment("Test order WITHOUT color");
+        return order;
+    }
+
+    @Before
+    public void setup() {
+        orderApi = new OrderApi(requestSpec);
     }
 
     @Test
-    @Description("Проверка: можно создать заказ без цвета")
-    public void testCreateOrderWithoutColor() {
-        OrderData order = new OrderData(
-                "Иван",
-                "Иванов",
-                "Невский проспект, 10",
-                1,
-                "+71234567890",
-                1,
-                "2025-01-20",
-                "Позвонить перед приездом",
-                null
-        );
-
-        given()
-                .contentType("application/json")
-                .body(order)
-                .post(ApiConstants.ORDER_CREATE)
-                .then()
-                .statusCode(ApiConstants.STATUS_CREATED)
-                .body("track", notNullValue());
+    @Description("Создание заказа успешно возвращает track")
+    public void testOrderCreationReturnsTrack() {
+        orderApi.assertOrderCreatedSuccessfully(order);
     }
 
     @Test
-    @Description("Проверка: можно создать заказ с одним цветом BLACK")
-    public void testCreateOrderWithBlackColor() {
-        OrderData order = new OrderData(
-                "Петр",
-                "Петров",
-                "Марсова поля, 25",
-                2,
-                "+71234567891",
-                2,
-                "2025-01-21",
-                "Оставить у двери",
-                Arrays.asList("BLACK")
-        );
-
-        given()
-                .contentType("application/json")
-                .body(order)
-                .post(ApiConstants.ORDER_CREATE)
-                .then()
-                .statusCode(ApiConstants.STATUS_CREATED)
-                .body("track", notNullValue());
-    }
-
-    @Test
-    @Description("Проверка: можно создать заказ с одним цветом GREY")
-    public void testCreateOrderWithGreyColor() {
-        OrderData order = new OrderData(
-                "Сергей",
-                "Сергеев",
-                "Садовая улица, 45",
-                3,
-                "+71234567892",
-                3,
-                "2025-01-22",
-                "Позвонить",
-                Arrays.asList("GREY")
-        );
-
-        given()
-                .contentType("application/json")
-                .body(order)
-                .post(ApiConstants.ORDER_CREATE)
-                .then()
-                .statusCode(ApiConstants.STATUS_CREATED)
-                .body("track", notNullValue());
-    }
-
-    @Test
-    @Description("Проверка: можно создать заказ с обоими цветами")
-    public void testCreateOrderWithBothColors() {
-        OrderData order = new OrderData(
-                "Анна",
-                "Анненко",
-                "Декабристов, 73",
-                4,
-                "+71234567893",
-                1,
-                "2025-01-23",
-                "Без комментариев",
-                Arrays.asList("BLACK", "GREY")
-        );
-
-        given()
-                .contentType("application/json")
-                .body(order)
-                .post(ApiConstants.ORDER_CREATE)
-                .then()
-                .statusCode(ApiConstants.STATUS_CREATED)
-                .body("track", notNullValue());
-    }
-
-    @Test
-    @Description("Проверка: ответ содержит track при создании заказа")
-    public void testResponseContainsTrack() {
-        OrderData order = new OrderData(
-                "Мария",
-                "Маркина",
-                "Рубинштейна, 100",
-                5,
-                "+71234567894",
-                2,
-                "2025-01-24",
-                "Не беспокоить",
-                null
-        );
-
-        given()
-                .contentType("application/json")
-                .body(order)
-                .post(ApiConstants.ORDER_CREATE)
-                .then()
-                .statusCode(ApiConstants.STATUS_CREATED)
-                .body("track", allOf(notNullValue(), greaterThan(0)));
-    }
-
-    @Test
-    @Description("Проверка: ответ содержит корректный track")
-    public void testTrackIsNumeric() {
-        OrderData order = new OrderData(
-                "Ольга",
-                "Олегова",
-                "Невский проспект, 50",
-                1,
-                "+71234567895",
-                1,
-                "2025-01-25",
-                "Позвонить",
-                Arrays.asList("BLACK")
-        );
-
-        given()
-                .contentType("application/json")
-                .body(order)
-                .post(ApiConstants.ORDER_CREATE)
-                .then()
-                .statusCode(ApiConstants.STATUS_CREATED)
-                .body("track", instanceOf(Integer.class));
+    @Description("Тело ответа при создании заказа содержит track")
+    public void testOrderResponseContainsTrack() {
+        int track = orderApi.createOrderAndGetTrack(order);
+        assert track > 0 : "Track should be greater than 0";
     }
 }

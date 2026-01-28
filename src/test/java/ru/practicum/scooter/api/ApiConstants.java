@@ -4,17 +4,14 @@ public class ApiConstants {
     public static final String BASE_URL = "http://qa-scooter.praktikum-services.ru";
     public static final String API_PATH = "/api/v1";
 
-    // Courier endpoints
     public static final String COURIER_CREATE = API_PATH + "/courier";
     public static final String COURIER_LOGIN = API_PATH + "/courier/login";
     public static final String COURIER_DELETE = API_PATH + "/courier/{id}";
 
-    // Orders endpoints
     public static final String ORDER_CREATE = API_PATH + "/orders";
     public static final String ORDER_LIST = API_PATH + "/orders";
     public static final String ORDER_GET = API_PATH + "/orders/track";
 
-    // Response status codes
     public static final int STATUS_SUCCESS = 200;
     public static final int STATUS_CREATED = 201;
     public static final int STATUS_BAD_REQUEST = 400;

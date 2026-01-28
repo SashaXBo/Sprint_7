@@ -2,166 +2,98 @@ package ru.practicum.scooter.tests;
 
 import io.qameta.allure.Description;
 import io.qameta.allure.Story;
-import io.qameta.allure.restassured.AllureRestAssured;
-import io.restassured.RestAssured;
-import org.junit.BeforeClass;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
-import ru.practicum.scooter.api.ApiConstants;
+import ru.practicum.scooter.api.CourierApi;
 import ru.practicum.scooter.models.CourierData;
+import ru.practicum.scooter.tests.base.BaseTest;
 import ru.practicum.scooter.utils.TestDataGenerator;
 
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
+import java.util.ArrayList;
+import java.util.List;
 
 @Story("Courier Creation")
-public class CourierCreationTest {
+public class CourierCreationTest extends BaseTest {
 
-    @BeforeClass
-    public static void setup() {
-        RestAssured.baseURI = ApiConstants.BASE_URL;
-        RestAssured.filters(new AllureRestAssured());}
+    private CourierApi courierApi;
+    private TestDataGenerator testData;
+    private List<CourierData> createdCouriers = new ArrayList<>();
 
-    @Test
-    @Description("Проверка: курьера можно создать")
-    public void testCourierCanBeCreated() {
-        CourierData courier = new CourierData(
-                TestDataGenerator.generateRandomLogin(),
-                TestDataGenerator.generatePassword(),
-                TestDataGenerator.generateFirstName()
-        );
+    @Before
+    public void setup() {
+        courierApi = new CourierApi(requestSpec);
+        testData = new TestDataGenerator();
+        createdCouriers.clear();
+    }
 
-        given()
-                .contentType("application/json")
-                .body(courier)
-                .post(ApiConstants.COURIER_CREATE)
-                .then()
-                .statusCode(ApiConstants.STATUS_CREATED)
-                .body("ok", equalTo(true));
+    @After
+    public void cleanup() {
+        for (CourierData courier : createdCouriers) {
+            courierApi.deleteCreatedCourier(courier);
+        }
     }
 
     @Test
-    @Description("Проверка: нельзя создать двух одинаковых курьеров")
+    @Description("Успешное создание курьера с корректными данными")
+    public void testCreateCourierWithValidData() {
+        CourierData courier = testData.createValidCourier();
+        courierApi.assertCourierCreatedSuccessfully(courier);
+        createdCouriers.add(courier);
+    }
+
+    @Test
+    @Description("Невозможно создать двух курьеров с одинаковым логином")
     public void testCannotCreateDuplicateCourier() {
-        String login = TestDataGenerator.generateRandomLogin();
-        String password = TestDataGenerator.generatePassword();
-        String firstName = TestDataGenerator.generateFirstName();
+        CourierData courier = testData.createValidCourier();
+        courierApi.createCourier(courier).statusCode(201);
+        createdCouriers.add(courier);
 
-        CourierData courier = new CourierData(login, password, firstName);
-
-        // Создаем первого курьера
-        given()
-                .contentType("application/json")
-                .body(courier)
-                .post(ApiConstants.COURIER_CREATE)
-                .then()
-                .statusCode(ApiConstants.STATUS_CREATED);
-
-        // Пытаемся создать второго с тем же логином
-        given()
-                .contentType("application/json")
-                .body(courier)
-                .post(ApiConstants.COURIER_CREATE)
-                .then()
-                .statusCode(ApiConstants.STATUS_CONFLICT)
-                .body("message", containsString("Этот логин уже используется"));
+        courierApi.assertDuplicateLoginError(courier);
     }
 
     @Test
-    @Description("Проверка: обязательные поля для создания курьера")
-    public void testMissingLoginField() {
-        CourierData courier = new CourierData(
-                null,  // без логина
-                TestDataGenerator.generatePassword(),
-                TestDataGenerator.generateFirstName()
-        );
-
-        given()
-                .contentType("application/json")
-                .body(courier)
-                .post(ApiConstants.COURIER_CREATE)
-                .then()
-                .statusCode(ApiConstants.STATUS_BAD_REQUEST)
-                .body("message", containsString("Недостаточно данных для создания учетной записи"));
+    @Description("Создание курьера без логина должно быть отклонено")
+    public void testCreateCourierWithoutLogin() {
+        CourierData courier = testData.createCourierWithoutLogin();
+        courierApi.assertBadRequestError(courier);
     }
 
     @Test
-    @Description("Проверка: обязательное поле пароль")
-    public void testMissingPasswordField() {
-        CourierData courier = new CourierData(
-                TestDataGenerator.generateRandomLogin(),
-                null,  // без пароля
-                TestDataGenerator.generateFirstName()
-        );
-
-        given()
-                .contentType("application/json")
-                .body(courier)
-                .post(ApiConstants.COURIER_CREATE)
-                .then()
-                .statusCode(ApiConstants.STATUS_BAD_REQUEST)
-                .body("message", containsString("Недостаточно данных для создания учетной записи"));
+    @Description("Создание курьера без пароля должно быть отклонено")
+    public void testCreateCourierWithoutPassword() {
+        CourierData courier = testData.createCourierWithoutPassword();
+        courierApi.assertBadRequestError(courier);
     }
 
     @Test
-    @Description("Проверка: успешный запрос возвращает ok: true")
-    public void testSuccessfulResponseReturnsOkTrue() {
-        CourierData courier = new CourierData(
-                TestDataGenerator.generateRandomLogin(),
-                TestDataGenerator.generatePassword(),
-                TestDataGenerator.generateFirstName()
-        );
-
-        given()
-                .contentType("application/json")
-                .body(courier)
-                .post(ApiConstants.COURIER_CREATE)
-                .then()
-                .statusCode(ApiConstants.STATUS_CREATED)
-                .body("ok", equalTo(true));
+    @Description("Создание курьера без имени — имя может быть опциональным полем")
+    public void testCreateCourierWithoutFirstName() {
+        CourierData courier = testData.createCourierWithoutFirstName();
+        // firstName может быть опциональным, поэтому тест проверяет успешное создание
+        courierApi.createCourier(courier)
+                .statusCode(201)
+                .body("ok", org.hamcrest.Matchers.equalTo(true));
+        createdCouriers.add(courier);
     }
 
     @Test
-    @Description("Проверка: создание с логином, который уже существует")
-    public void testDuplicateLoginError() {
-        String login = TestDataGenerator.generateRandomLogin();
-        String password = TestDataGenerator.generatePassword();
-
-        CourierData courier1 = new CourierData(login, password, TestDataGenerator.generateFirstName());
-
-        // Создаем первого курьера
-        given()
-                .contentType("application/json")
-                .body(courier1)
-                .post(ApiConstants.COURIER_CREATE)
-                .then()
-                .statusCode(ApiConstants.STATUS_CREATED);
-
-        CourierData courier2 = new CourierData(login, TestDataGenerator.generatePassword(), TestDataGenerator.generateFirstName());
-
-        // Пытаемся создать второго с существующим логином
-        given()
-                .contentType("application/json")
-                .body(courier2)
-                .post(ApiConstants.COURIER_CREATE)
-                .then()
-                .statusCode(ApiConstants.STATUS_CONFLICT)
-                .body("message", notNullValue());
+    @Description("Успешный запрос возвращает ok: true")
+    public void testSuccessfulCreationReturnsOkTrue() {
+        CourierData courier = testData.createValidCourier();
+        courierApi.createCourier(courier)
+                .statusCode(201)
+                .body("ok", org.hamcrest.Matchers.equalTo(true));
+        createdCouriers.add(courier);
     }
 
     @Test
-    @Description("Проверка: возвращается правильный код ответа при успехе")
-    public void testCorrectStatusCodeOnSuccess() {
-        CourierData courier = new CourierData(
-                TestDataGenerator.generateRandomLogin(),
-                TestDataGenerator.generatePassword(),
-                TestDataGenerator.generateFirstName()
-        );
+    @Description("Создание с уже существующим логином возвращает конфликт")
+    public void testDuplicateLoginReturnsConflict() {
+        CourierData courier = testData.createValidCourier();
+        courierApi.createCourier(courier).statusCode(201);
+        createdCouriers.add(courier);
 
-        given()
-                .contentType("application/json")
-                .body(courier)
-                .post(ApiConstants.COURIER_CREATE)
-                .then()
-                .statusCode(anyOf(equalTo(ApiConstants.STATUS_CREATED), equalTo(ApiConstants.STATUS_SUCCESS)));
+        courierApi.createCourier(courier).statusCode(409);
     }
 }

@@ -2,67 +2,34 @@ package ru.practicum.scooter.tests;
 
 import io.qameta.allure.Description;
 import io.qameta.allure.Story;
-import io.qameta.allure.restassured.AllureRestAssured;
-import io.restassured.RestAssured;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
-import ru.practicum.scooter.api.ApiConstants;
+import ru.practicum.scooter.api.OrderApi;
+import ru.practicum.scooter.tests.base.BaseTest;
 
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.notNullValue;
 
 @Story("Order List")
-public class OrderListTest {
+public class OrderListTest extends BaseTest {
 
-    @BeforeClass
-    public static void setup() {
-        RestAssured.baseURI = ApiConstants.BASE_URL;
-        RestAssured.filters(new AllureRestAssured());}
+    private OrderApi orderApi;
 
-    @Test
-    @Description("Проверка: в тело ответа возвращается список заказов")
-    public void testOrderListReturnsArray() {
-        given()
-                .contentType("application/json")
-                .get(ApiConstants.ORDER_LIST)
-                .then()
-                .statusCode(ApiConstants.STATUS_SUCCESS)
-                .body("orders", notNullValue())
-                .body("orders", instanceOf(java.util.List.class));
+    @Before
+    public void setup() {
+        orderApi = new OrderApi(requestSpec);
     }
 
     @Test
-    @Description("Проверка: список заказов содержит положительное количество элементов")
-    public void testOrderListIsNotEmpty() {
-        given()
-                .contentType("application/json")
-                .get(ApiConstants.ORDER_LIST)
-                .then()
-                .statusCode(ApiConstants.STATUS_SUCCESS)
-                .body("orders.size()", greaterThanOrEqualTo(0));
+    @Description("В тело ответа возвращается список заказов")
+    public void testOrdersListExists() {
+        orderApi.assertOrdersListExists();
     }
 
     @Test
-    @Description("Проверка: каждый заказ содержит корректные поля")
-    public void testOrderHasRequiredFields() {
-        given()
-                .contentType("application/json")
-                .get(ApiConstants.ORDER_LIST)
-                .then()
-                .statusCode(ApiConstants.STATUS_SUCCESS)
-                .body("orders", hasSize(greaterThanOrEqualTo(0)))
-                .body("orders.id", everyItem(notNullValue()));
-    }
-
-    @Test
-    @Description("Проверка: ответ содержит поле totalCount")
-    public void testResponseHasTotalCount() {
-        given()
-                .contentType("application/json")
-                .get(ApiConstants.ORDER_LIST)
-                .then()
-                .statusCode(ApiConstants.STATUS_SUCCESS)
+    @Description("Список заказов имеет структуру с полями orders")
+    public void testOrdersListHasOrders() {
+        orderApi.getOrdersList()
+                .statusCode(200)
                 .body("orders", notNullValue());
-                //.body("totalOrdersCount", greaterThanOrEqualTo(0));
     }
 }
